@@ -2,6 +2,8 @@ package com.example.circulardial;
 
 import static androidx.core.math.MathUtils.clamp;
 
+import static java.lang.Math.sqrt;
+
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -9,9 +11,12 @@ import android.graphics.Point;
 import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.util.TypedValue;
+import android.view.MotionEvent;
 import android.view.View;
 
 import androidx.core.content.ContextCompat;
+
+import java.util.Vector;
 
 public class CircularDial extends View {
     // Création dynamique du slider
@@ -35,6 +40,10 @@ public class CircularDial extends View {
 
     private void init(Context context, AttributeSet attrs)
     {
+        m_innerRadius = dpToPx(DEFAULT_DISPLAY_DIAMETER / 2.f);
+        m_outerRadius = dpToPx(DEFAULT_DIAL_DIAMETER / 2.f);
+        m_totalRadius = dpToPx(DEFAULT_DIAL_DIAMETER / 2.f + DEFAULT_OUTLINE_THICKNESS);
+
         m_outlinePaint = new Paint();
         m_insidePaint = new Paint();
         m_selectedPaint = new Paint();
@@ -45,8 +54,8 @@ public class CircularDial extends View {
 
         m_outlinePaint.setColor(ContextCompat.getColor(context, R.color.lightGrey));
         m_insidePaint.setColor(ContextCompat.getColor(context, R.color.primaryColorDarkest));
-        m_selectedPaint.setColor(ContextCompat.getColor(context, R.color.primaryColorDarker));
-        m_unselectedPaint.setColor(ContextCompat.getColor(context, R.color.primaryColor));
+        m_selectedPaint.setColor(ContextCompat.getColor(context, R.color.primaryColor));
+        m_unselectedPaint.setColor(ContextCompat.getColor(context, R.color.primaryColorDarker));
         m_bigTicksPaint.setColor(ContextCompat.getColor(context, R.color.primaryColorDarkest));
         m_smallTicksPaint.setColor(ContextCompat.getColor(context, R.color.primaryColorDarkest));
         m_textPaint.setColor(ContextCompat.getColor(context, R.color.white));
@@ -69,43 +78,94 @@ public class CircularDial extends View {
         super.onDraw(canvas);
         //adaptDims(); TODO
 
-        final float totalRadius = dpToPx(DEFAULT_DIAL_DIAMETER / 2.f + DEFAULT_OUTLINE_THICKNESS);
+        final float outline = m_totalRadius - m_outerRadius;
         final RectF rect = new RectF(
-                dpToPx(DEFAULT_OUTLINE_THICKNESS),
-                dpToPx(DEFAULT_OUTLINE_THICKNESS),
-                dpToPx(DEFAULT_OUTLINE_THICKNESS + DEFAULT_DIAL_DIAMETER),
-                dpToPx(DEFAULT_OUTLINE_THICKNESS + DEFAULT_DIAL_DIAMETER));
+                outline,
+                outline,
+                outline + m_outerRadius * 2.f,
+                outline + m_outerRadius * 2.f);
 
-        canvas.drawCircle(totalRadius, totalRadius, totalRadius, m_outlinePaint);
-        canvas.drawCircle(totalRadius, totalRadius, dpToPx(DEFAULT_DIAL_DIAMETER / 2.f), m_unselectedPaint);
+        canvas.drawCircle(m_totalRadius, m_totalRadius, m_totalRadius, m_outlinePaint);
+        canvas.drawCircle(m_totalRadius, m_totalRadius, m_outerRadius, m_unselectedPaint);
         canvas.drawArc(rect, -90.f,ratioToAngle(m_value), true, m_selectedPaint);
-        canvas.drawCircle(totalRadius, totalRadius, dpToPx(DEFAULT_DISPLAY_DIAMETER / 2.f), m_insidePaint);
+        canvas.drawCircle(m_totalRadius, m_totalRadius, m_innerRadius, m_insidePaint);
 
-        final float sliderWidth = (DEFAULT_DIAL_DIAMETER - DEFAULT_DISPLAY_DIAMETER) / 2.f;
+        final float sliderWidth = m_outerRadius - m_innerRadius;
 
         for (int i = 0; i < 8; i++) {
             float x = (float)Math.cos((Math.PI / 4.f) * (float)i);
             float y = (float)Math.sin((Math.PI / 4.f) * (float)i);
 
-            float radiusIn = dpToPx(DEFAULT_DISPLAY_DIAMETER / 2.f + 0.2f * sliderWidth);
-            float radiusOut = dpToPx(DEFAULT_DISPLAY_DIAMETER / 2.f + 0.8f * sliderWidth);
+            float radiusIn = m_innerRadius + 0.2f * sliderWidth;
+            float radiusOut = m_innerRadius + 0.8f * sliderWidth;
             canvas.drawLine(
-                    radiusIn * x + totalRadius, radiusIn * y + totalRadius,
-                    radiusOut * x + totalRadius, radiusOut * y + totalRadius, m_bigTicksPaint);
+                    radiusIn * x + m_totalRadius, radiusIn * y + m_totalRadius,
+                    radiusOut * x + m_totalRadius, radiusOut * y + m_totalRadius, m_bigTicksPaint);
         }
 
         for (int i = 0; i < 8; i++) {
             float x = (float)Math.cos((Math.PI / 4.f) * (float)i + Math.PI / 8.f);
             float y = (float)Math.sin((Math.PI / 4.f) * (float)i + Math.PI / 8.f);
 
-            float radiusIn = dpToPx(DEFAULT_DISPLAY_DIAMETER / 2.f + 0.35f * sliderWidth);
-            float radiusOut = dpToPx(DEFAULT_DISPLAY_DIAMETER / 2.f + 0.65f * sliderWidth);
+            float radiusIn = m_innerRadius + 0.35f * sliderWidth;
+            float radiusOut = m_innerRadius + 0.65f * sliderWidth;
             canvas.drawLine(
-                    radiusIn * x + totalRadius, radiusIn * y + totalRadius,
-                    radiusOut * x + totalRadius, radiusOut * y + totalRadius, m_smallTicksPaint);
+                    radiusIn * x + m_totalRadius, radiusIn * y + m_totalRadius,
+                    radiusOut * x + m_totalRadius, radiusOut * y + m_totalRadius, m_smallTicksPaint);
         }
 
-        canvas.drawText(String.valueOf((int)(m_value * 100.f)) + "%", totalRadius, totalRadius + dpToPx(DEFAULT_DISPLAY_DIAMETER / 8.f), m_textPaint);
+        canvas.drawText(String.valueOf((int)(m_value * 100.f)) + "%", m_totalRadius, m_totalRadius + m_innerRadius / 4.f, m_textPaint);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event)
+    {
+        switch (event.getAction())
+        {
+            case MotionEvent.ACTION_MOVE:
+                if (!m_afterDoubleClick) {
+                    float newValue = angleToRatio(positionToAngle(new Point((int) event.getX(), (int) event.getY())));
+                    // Eviter le saut de 0 à 360;
+                    if (m_value < 0.1f && newValue > 0.5f) {
+                        newValue = 0.f;
+                    } else if (m_value > 0.9f && newValue < 0.5f) {
+                        newValue = 1.f;
+                    }
+
+                    m_value = newValue;
+
+                    invalidate();
+                    if (m_sliderChangeListener != null)
+                        m_sliderChangeListener.onChange(m_value);
+                }
+                break;
+
+            case MotionEvent.ACTION_DOWN:
+                if (m_doubleClick)
+                {
+                    m_doubleClick = false;
+                    m_afterDoubleClick = true;
+                    m_value = 0.f;
+                    invalidate();
+                    if (m_sliderChangeListener != null)
+                        m_sliderChangeListener.onChange(m_value);
+                }
+                else
+                {
+                    m_doubleClick = true;
+                    postDelayed(() -> {m_doubleClick = false;}, 500);
+                }
+                break;
+
+            case MotionEvent.ACTION_UP:
+                m_afterDoubleClick = false;
+                break;
+
+            //case MotionEvent.
+            default:
+                break;
+        }
+        return true;
     }
 
     @Override
@@ -114,8 +174,8 @@ public class CircularDial extends View {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
 
         // TODO: current size values
-        int suggestedHeight = (int)Math.max(getMinimumHeight(), dpToPx(DEFAULT_DIAL_DIAMETER + DEFAULT_OUTLINE_THICKNESS * 2.f) + getPaddingTop() + getPaddingBottom());
-        int suggestedWidth = (int)Math.max(getMinimumWidth(), dpToPx(DEFAULT_DIAL_DIAMETER + DEFAULT_OUTLINE_THICKNESS * 2.f) + getPaddingLeft() + getPaddingRight());
+        int suggestedHeight = (int)Math.max(getMinimumHeight(), m_totalRadius * 2.f + getPaddingTop() + getPaddingBottom());
+        int suggestedWidth = (int)Math.max(getMinimumWidth(), m_totalRadius * 2.f + getPaddingLeft() + getPaddingRight());
 
         int height = resolveSize(suggestedHeight, heightMeasureSpec);
         int width = resolveSize(suggestedWidth, widthMeasureSpec);
@@ -137,7 +197,20 @@ public class CircularDial extends View {
     }
 
     private float positionToAngle(Point point) {
-        return 0; // TODO
+        float x = -(point.y - m_totalRadius); // Ajustement du repère pour trigonométrie plus simple
+        float y = +(point.x - m_totalRadius); // + cast en float (Centré autour du centre)
+        float l = (float)sqrt(x * x + y * y);
+        x /= l; y /= l; // Normalisation du vecteur
+
+        float a = (float)Math.asin(y); // Détermination de l'angle
+        if (x < 0) { // Mirroir de la coordonnée pour soulever l'ambiguité
+            a += Math.PI - (a * 2.f);
+        } else if (y < 0) {
+            a += Math.PI * 2.f;
+        }
+
+        // Conversion en degrés
+        return (float)(a / Math.PI) * 180.f;
     }
 
     public void setSliderChangeListener(SliderChangeListener m_sliderChangeListener) {
@@ -162,6 +235,12 @@ public class CircularDial extends View {
             m_textPaint;
 
     private float m_value = 0.3f;
+
+    private float m_innerRadius, // Display
+            m_outerRadius, // Display + slider
+            m_totalRadius; // Display + slider + outline
+
+    private boolean m_doubleClick, m_afterDoubleClick;
 
     public final static float DEFAULT_DIAL_DIAMETER = 160.f; // Diameter of the dial (without outline)
     public final static float DEFAULT_OUTLINE_THICKNESS = 5.f; // Thickness of the dial outline
