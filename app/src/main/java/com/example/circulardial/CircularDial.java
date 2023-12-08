@@ -5,15 +5,20 @@ import static androidx.core.math.MathUtils.clamp;
 import static java.lang.Math.sqrt;
 
 import android.content.Context;
+import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Point;
 import android.graphics.RectF;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
 
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
 import java.util.Vector;
@@ -40,9 +45,23 @@ public class CircularDial extends View {
 
     private void init(Context context, AttributeSet attrs)
     {
-        m_innerRadius = dpToPx(DEFAULT_DISPLAY_DIAMETER / 2.f);
-        m_outerRadius = dpToPx(DEFAULT_DIAL_DIAMETER / 2.f);
-        m_totalRadius = dpToPx(DEFAULT_DIAL_DIAMETER / 2.f + DEFAULT_OUTLINE_THICKNESS);
+        float dpInnerRadius = DEFAULT_DISPLAY_DIAMETER / 2.f;
+        float dpOuterRadius = DEFAULT_DIAL_DIAMETER / 2.f;
+        float dpTotalRadius = DEFAULT_DIAL_DIAMETER / 2.f + DEFAULT_OUTLINE_THICKNESS;
+
+        if (attrs != null) {
+            TypedArray attr = context.obtainStyledAttributes(R.styleable.CircularDial);
+
+            dpOuterRadius = attr.getDimension(R.styleable.CircularDial_diameter, dpOuterRadius);
+            dpTotalRadius = dpOuterRadius + attr.getDimension(R.styleable.CircularDial_outline, dpToPx(DEFAULT_OUTLINE_THICKNESS));
+            dpInnerRadius = attr.getDimension(R.styleable.CircularDial_displayDiameter, dpOuterRadius / 2.f);
+
+            attr.recycle();
+        }
+
+        m_innerRadius = dpToPx(dpInnerRadius);
+        m_outerRadius = dpToPx(dpOuterRadius);
+        m_totalRadius = dpToPx(dpTotalRadius);
 
         m_outlinePaint = new Paint();
         m_insidePaint = new Paint();
@@ -213,8 +232,63 @@ public class CircularDial extends View {
         return (float)(a / Math.PI) * 180.f;
     }
 
+    @Override
+    protected Parcelable onSaveInstanceState() {
+        Log.i("TEST", "save state");
+        Parcelable superState = super.onSaveInstanceState();
+        SavedState savedState = new SavedState(superState, m_value);
+        return savedState;
+    }
+
+    private static class SavedState extends BaseSavedState {
+        private float savedValue;
+
+        public SavedState(Parcelable superState, float savedValue) {
+            super(superState);
+            this.savedValue = savedValue;
+        }
+
+        private SavedState(Parcel in) {
+            super(in);
+            savedValue = in.readInt();
+        }
+
+        @Override
+        public void writeToParcel(Parcel out, int flags) {
+            super.writeToParcel(out, flags);
+            out.writeFloat(savedValue);
+        }
+
+        public static final Parcelable.Creator<SavedState> CREATOR = new Parcelable.Creator<SavedState>() {
+            public SavedState createFromParcel(Parcel in) {
+                return new SavedState(in);
+            }
+
+            public SavedState[] newArray(int size) {
+                return new SavedState[size];
+            }
+        };
+    }
+    @Override
+    protected void onRestoreInstanceState(Parcelable state) {
+        if (state instanceof SavedState) {
+            SavedState savedState = (SavedState) state;
+            super.onRestoreInstanceState(savedState.getSuperState());
+            m_value = savedState.savedValue;
+            invalidate();
+            Log.i("TEST", "restore state");
+            if (m_sliderChangeListener != null)
+                m_sliderChangeListener.onChange(m_value);
+        } else {
+            super.onRestoreInstanceState(state);
+        }
+    }
+
+
     public void setSliderChangeListener(SliderChangeListener m_sliderChangeListener) {
         this.m_sliderChangeListener = m_sliderChangeListener;
+        if (m_sliderChangeListener != null)
+            m_sliderChangeListener.onChange(m_value);
     }
 
     public void setValue(float value) {
@@ -244,7 +318,7 @@ public class CircularDial extends View {
 
     public final static float DEFAULT_DIAL_DIAMETER = 160.f; // Diameter of the dial (without outline)
     public final static float DEFAULT_OUTLINE_THICKNESS = 5.f; // Thickness of the dial outline
-    public final static float DEFAULT_DISPLAY_DIAMETER = 70.f; // Diameter of the inside circle (where the % is displayed)
+    public final static float DEFAULT_DISPLAY_DIAMETER = 80.f; // Diameter of the inside circle (where the % is displayed)
     public final static float DEFAULT_TICK_THICKNESS = 3.f; // Thickness of the tick strokes (big ticks)
 
     public final static float MIN_SLIDER_RADIUS = 160.f / 4.f;
