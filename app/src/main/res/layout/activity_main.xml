@@ -15,7 +15,10 @@
         app:layout_constraintHorizontal_bias="0.497"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:diameter="1000dp"/>
+        app:diameter="100dp"
+        app:tickThickness="4dp"
+        app:outline="4dp"
+        app:displayDiameter="50dp"/>
 
     <TextView
         android:id="@+id/textView"

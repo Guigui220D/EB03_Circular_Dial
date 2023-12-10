@@ -48,13 +48,15 @@ public class CircularDial extends View {
         float dpInnerRadius = DEFAULT_DISPLAY_DIAMETER / 2.f;
         float dpOuterRadius = DEFAULT_DIAL_DIAMETER / 2.f;
         float dpTotalRadius = DEFAULT_DIAL_DIAMETER / 2.f + DEFAULT_OUTLINE_THICKNESS;
+        float dpTickThickness = DEFAULT_TICK_THICKNESS;
 
         if (attrs != null) {
-            TypedArray attr = context.obtainStyledAttributes(R.styleable.CircularDial);
+            TypedArray attr = context.obtainStyledAttributes(attrs, R.styleable.CircularDial, 0, 0);
 
             dpOuterRadius = attr.getDimension(R.styleable.CircularDial_diameter, dpOuterRadius);
             dpTotalRadius = dpOuterRadius + attr.getDimension(R.styleable.CircularDial_outline, dpToPx(DEFAULT_OUTLINE_THICKNESS));
             dpInnerRadius = attr.getDimension(R.styleable.CircularDial_displayDiameter, dpOuterRadius / 2.f);
+            dpTickThickness = attr.getDimension(R.styleable.CircularDial_tickThickness, dpTickThickness);
 
             attr.recycle();
         }
@@ -79,14 +81,14 @@ public class CircularDial extends View {
         m_smallTicksPaint.setColor(ContextCompat.getColor(context, R.color.primaryColorDarkest));
         m_textPaint.setColor(ContextCompat.getColor(context, R.color.white));
 
-        m_bigTicksPaint.setStrokeWidth(dpToPx(DEFAULT_TICK_THICKNESS));
-        m_smallTicksPaint.setStrokeWidth(dpToPx(DEFAULT_TICK_THICKNESS / 1.5f));
+        m_bigTicksPaint.setStrokeWidth(dpToPx(dpTickThickness));
+        m_smallTicksPaint.setStrokeWidth(dpToPx(dpTickThickness / 1.5f));
 
         m_bigTicksPaint.setStrokeCap(Paint.Cap.ROUND);
         m_smallTicksPaint.setStrokeCap(Paint.Cap.ROUND);
 
         m_textPaint.setTextAlign(Paint.Align.CENTER);
-        m_textPaint.setTextSize(dpToPx(DEFAULT_DISPLAY_DIAMETER / 3.f));
+        m_textPaint.setTextSize(dpToPx(m_innerRadius / 1.5f));
 
         setMinimumHeight((int)dpToPx(MIN_SLIDER_RADIUS * 2.f));
         setMinimumWidth((int)dpToPx(MIN_SLIDER_RADIUS * 2.f));
@@ -133,7 +135,7 @@ public class CircularDial extends View {
                     radiusOut * x + m_totalRadius, radiusOut * y + m_totalRadius, m_smallTicksPaint);
         }
 
-        canvas.drawText(String.valueOf((int)(m_value * 100.f)) + "%", m_totalRadius, m_totalRadius + m_innerRadius / 4.f, m_textPaint);
+        canvas.drawText(String.valueOf((int)(m_value * 100.f)) + "%", m_totalRadius, m_totalRadius + m_innerRadius / 3.f, m_textPaint);
     }
 
     @Override
